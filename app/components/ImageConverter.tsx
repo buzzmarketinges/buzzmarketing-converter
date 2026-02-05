@@ -33,6 +33,7 @@ export default function ImageConverter({ ffmpeg, loaded }: ImageConverterProps) 
     const [processing, setProcessing] = useState(false);
     const [zipUrl, setZipUrl] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [globalKeywords, setGlobalKeywords] = useState('');
 
     // Clean the preview URLs when component unmounts
     useEffect(() => {
@@ -66,8 +67,46 @@ export default function ImageConverter({ ffmpeg, loaded }: ImageConverterProps) 
             };
         }));
 
-        setImages(prev => [...prev, ...newImages]);
+        setImages(prev => {
+            const allImages = [...prev, ...newImages];
+            return assignKeywordsToImages(allImages);
+        });
     };
+
+    // Function to assign random unique keywords to images
+    const assignKeywordsToImages = (imageList: ImageItem[]) => {
+        if (!globalKeywords.trim()) return imageList;
+
+        const keywords = globalKeywords
+            .split('\n')
+            .map(k => k.trim())
+            .filter(k => k.length > 0);
+
+        if (keywords.length === 0) return imageList;
+
+        // Shuffle keywords for randomness
+        const shuffledKeywords = [...keywords].sort(() => Math.random() - 0.5);
+
+        return imageList.map((img, index) => {
+            // If image already has a manually set keyword, keep it
+            if (img.keyword && img.keyword.trim() !== '') return img;
+
+            // Assign keyword with unique suffix if we run out of keywords
+            const keywordIndex = index % shuffledKeywords.length;
+            const baseKeyword = shuffledKeywords[keywordIndex];
+            const suffix = Math.floor(index / shuffledKeywords.length);
+            const uniqueKeyword = suffix > 0 ? `${baseKeyword}-${suffix + 1}` : baseKeyword;
+
+            return { ...img, keyword: uniqueKeyword };
+        });
+    };
+
+    // Update keywords when global keywords change
+    useEffect(() => {
+        if (globalKeywords.trim()) {
+            setImages(prev => assignKeywordsToImages(prev));
+        }
+    }, [globalKeywords]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -286,6 +325,26 @@ export default function ImageConverter({ ffmpeg, loaded }: ImageConverterProps) 
                                 className="w-full accent-primary h-2 bg-black/40 rounded-lg appearance-none cursor-pointer"
                             />
                             <p className="text-[10px] text-gray-500">Aplica a JPG y WEBP</p>
+                        </div>
+
+                        <div className="h-px bg-white/10"></div>
+
+                        {/* Keywords Section */}
+                        <div className="space-y-2">
+                            <label className="label flex items-center gap-2">
+                                <Tag className="w-4 h-4 text-primary" />
+                                Keywords
+                            </label>
+                            <textarea
+                                value={globalKeywords}
+                                onChange={(e) => setGlobalKeywords(e.target.value)}
+                                placeholder="Escribe una keyword por línea...&#10;Ejemplo:&#10;Tatuaje minimalista&#10;Diseño de tatuaje&#10;Arte corporal"
+                                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-primary/50 outline-none transition-colors resize-none font-mono"
+                                rows={6}
+                            />
+                            <p className="text-[10px] text-gray-500">
+                                Se asignarán aleatoriamente a cada imagen. Todos los títulos serán únicos.
+                            </p>
                         </div>
 
                         {/* Action Button */}
